@@ -565,13 +565,16 @@ sub loadRepeatConsensus
   while ( <R> )
   {
     chomp;
-    if ( m/^ID\s+(.+?)\s+/ )
+#    if ( m/^ID\s+(.+?)\s+/ )
+#    if ( m/^NM\s+(.+?)\s+/ )
+    if ( m/^NM\s+(.+?)\s*$/ )
     {
       $rep = $1;
 
       #$rep =~ s/_\dend//;
       $alt = undef;
-    } elsif ( m/^DE\s+RepbaseID:\s+(.+)/ )
+#    } elsif ( m/^DE\s+RepbaseID:\s+(.+)/ )
+    } elsif ( m/^DR\s+RepbaseID:\s+(.+)/ )
     {
       $alt = $1;
     } elsif ( m/^\s+(.+)\s+\d+$/ )

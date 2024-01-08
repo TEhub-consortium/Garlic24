@@ -1,3 +1,37 @@
+# GARLIC24
+
+This repository tracks modifications made to the original [GARLIC](https://github.com/caballero/Garlic) repository in order to use it with the 2024 TE Hub benchmark on TE annotation. The fork `GARLIC24` was created by Clément Goubert.
+
+The original work at the time of the fork is available under the branch `original`, which correspond also to the commit [`97cbb7e`](https://github.com/caballero/Garlic/commit/97cbb7e78eadd57748b97160b6f1ae0274237b6b) of the original repository.
+
+## Features/Modifications:
+
+- GARLIC now works with [DFAM's EMBL library](https://dfam.org/releases/Dfam_3.8/families/) instead of Repbase
+
+## Documentation
+
+### Input files for GARLIC24
+
+| GARLIC script | file/argument | description | 
+| ------------- | ---- | ----------- |
+| **createModel.pl** | | | 
+| | `-m genome` | name given to the model; best if same as `genome`; also create dir: `./data/model` | 
+| | `-f genome.fa` | genome in Fasta format | 
+| | `-r genome.fa.align` | RepeatMasker output (.align; `-a`); does not work with .out | 
+| | `-t genome.trf` | TRF output for the genome; should match UCSC format |
+| | `-g genome.table` | Gene annotations in old ensGene.txt format; from .gtf, use my R script `GTF2TXT.R` | 
+| **createFakeSequence.pl** | | |
+| | `-m genome` | name given to the model; best if same as `genome`; expect to be found in `./data/model` |
+| | `-f genome.fa` | |
+| | `-s <size>` | size to generate; e.g. `1Mb`; throw a Warning about `Mb` but still works |
+| | `-o` | output fake genome prefix; will add `.fasta` to it |
+| | `--repbase_file` | EMBL formatted TE database; my modification of GARLIC works with DFAM 3.8 |
+
+
+-----
+
+## Original documentation 
+
 GARLIC - An artificial non-functional realistic DNA sequence generator.
 
 Copyright (C) 2011-2015 Juan Caballero [Institute for Systems Biology]
