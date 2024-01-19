@@ -15,19 +15,41 @@ The original work at the time of the fork is available under the branch `origina
 | GARLIC script | file/argument | description | 
 | ------------- | ---- | ----------- |
 | **createModel.pl** | | | 
-| | `-m genome` | name given to the model; best if same as `genome`; also create dir: `./data/model` | 
+| | `-m model` | name given to the model; best if same as `genome`; also create dir: `./data/model` | 
 | | `-f genome.fa` | genome in Fasta format | 
-| | `-r genome.fa.align` | RepeatMasker output (.align; `-a`); does not work with .out | 
-| | `-t genome.trf` | TRF output for the genome; should match UCSC format |
+| | `-r genome.fa.align.gz` | RepeatMasker output (.align; `-a`); does not work with .out | 
+| | `-t genome.fa.trf.bed` | TRF output for the genome; should match UCSC format |
 | | `-g genome.table` | Gene annotations in old ensGene.txt format; from .gtf, use my R script `GTF2TXT.R` | 
 | **createFakeSequence.pl** | | |
-| | `-m genome` | name given to the model; best if same as `genome`; expect to be found in `./data/model` |
+| | `-m model` | name given to the model; best if same as `genome`; expect to be found in `./data/model` |
 | | `-f genome.fa` | |
 | | `-s <size>` | size to generate; e.g. `1Mb`; throw a Warning about `Mb` but still works |
 | | `-o` | output fake genome prefix; will add `.fasta` to it |
 | | `--repbase_file` | EMBL formatted TE database; my modification of GARLIC works with DFAM 3.8 |
 
+### Garlic Execution
 
+#### `createModel.pl`
+
+Let's define a working directory called `workdir/`. From now on we assume we are in `workdir/`
+1. In `workdir/`, create a directory called `data` and add a subdirectory `model`
+```sh
+# in workdir/
+mkdir data
+mkdir data/model
+```
+2. Then, symlinc (or place) your input files in `data/`
+```sh
+# in workdir/data/model
+ln -s <path/to/genome.fa> <genome.fa>
+ln -s <path/to/genome.fa.trf.bed> <genome.fa.trf.bed>
+ln -s <path/to/genome.fa.align.gz> <genome.fa.align.gz>
+ln -s <path/to/genome.table> <genome.table>
+```
+3. Get back to the workdir and launch GARLIC
+```sh
+perl <path/to/Garlic24/bin/>createModel.pl -m <model> -f <genome>.fa -r <genome>.fa.align.gz -t <genome>.fa.trf.bed -g <genome>.table -v
+```
 -----
 
 ## Original documentation 
