@@ -50,6 +50,16 @@ ln -s <path/to/genome.table> <genome.table>
 ```sh
 perl <path/to/Garlic24/bin/>createModel.pl -m <model> -f <genome>.fa -r <genome>.fa.align.gz -t <genome>.fa.trf.bed -g <genome>.table -v
 ```
+
+#### `createFakeSequence.pl`
+
+To execute in `workdir/`
+
+```sh
+perl <path/to/Garlic24/bin/>createFakeSequence.pl -m <model> -s <size_int>Mb -o <fake_genome_prefix> --repbase_file <DFAM_release>.embl -d ./data
+```
+> `-d ./data` is extremely important: it says where the files to create the fake sequence are. The default expect everything to be running within the `<path/to/Garlic24/bin/>` dir, which is not what we want.
+
 -----
 
 ## Original documentation 
