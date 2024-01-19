@@ -73,10 +73,12 @@ d) Just create a base sequence without repeats
 =head1 AUTHOR
 
 Juan Caballero, Institute for Systems Biology @ 2012
+Clement Goubert, University of Arizona @ 2024
 
 =head1 CONTACT
 
 jcaballero@systemsbiology.org
+goubert.clement@gmail.com
 
 =head1 LICENSE
 
