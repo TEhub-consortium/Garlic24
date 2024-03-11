@@ -11,7 +11,7 @@ regions from the model selected. The models are described in parts:
 
   a) The composition background of kmer frequencies in fixed windows.
   b) The repeats parsed from the alignments described by RepeatMasker, 
-consensus bases acording to RepBase and Simple Repeats from TRF output.
+consensus bases and Simple Repeats from TRF output.
   c) Transitional GC frecuencies in fixed windows.
 
 To create the new sequence, first this creates a new non-repetitive sequence,
@@ -25,7 +25,7 @@ Usage: perl createFakeSequence.pl -m MODEL -s SIZE -o OUFILE [PARAMETERS]
 Required parameters:
 
   -m --model       Model to use (like hg19, mm9, ... etc)
-  -s --size        Size in bases, kb, Mb, Gb are accepted
+  -s --size        Size in bases. Suffixes 'k'=Kb, 'm'=Mb and 'g'=Gb are accepted
   -o --out         Output files to create *.fasta and *.inserts  [fake]
     
 Optional or automatic parameters:
@@ -34,7 +34,7 @@ Optional or automatic parameters:
   -k --kmer        Seed size to use                              [   4]
   -g --mingc       Minimal GC content to use                     [   0]
   -c --maxgc       Maximal GC content to use                     [ 100]
-  -r --repeat      Repetitive fraction [0-100]                   [auto]
+  -r --repeat      TE Repetitive fraction [0-100]                [auto]
   -l --lowcomplex  Low complexity seq fraction [0-100]           [auto]
   -d --dir         Directory with model                          [data]
   -t --type        Include only this type of repeats             [ all]
@@ -47,7 +47,7 @@ Optional or automatic parameters:
   --align          Print evolved repeat alignments to consensus
   --useBED         Use BED format for insert data
   
-  --repbase_file   RepBase file (EMBL format)
+  --tecons_file    TE consensi file (EMBL or FASTA format)
   --repeats_file   File with repeats information*
   --inserts_file   File with repeat inserts information* 
   --gct_file       File with GC transitions information*
@@ -59,26 +59,27 @@ Optional or automatic parameters:
 =head1 EXAMPLES
 
 a) Basic usage  
-   perl createFakeSequence.pl -m hg19 -s 1Mb -o fake
+   perl createFakeSequence.pl -m hg19 -s 1m -o fake
 
 b) Only include Alu sequences
-   perl createFakeSequence.pl -m hg19 -s 1Mb -o fake -t Alu
+   perl createFakeSequence.pl -m hg19 -s 1m -o fake -t Alu
 
 c) Change k-mer size to 6 and window size to 2kb
-   perl createFakeSequence.pl -m hg19 -s 1Mb -o fake -w 2000 -k 6
+   perl createFakeSequence.pl -m hg19 -s 1m -o fake -w 2000 -k 6
 
 d) Just create a base sequence without repeats
-   perl createFakeSequence.pl -m hg19 -s 1Mb -o fake --write_base --no_repeats
+   perl createFakeSequence.pl -m hg19 -s 1m -o fake --write_base --no_repeats
+
+e) Create a sequence with 10% TE insertions and 5% of simple repeats
+   perl createFakeSequence.pl -m hg19 -s 1m -o fake -r 10 -l 5
 
 =head1 AUTHOR
 
 Juan Caballero, Institute for Systems Biology @ 2012
-Clement Goubert, University of Arizona @ 2024
 
 =head1 CONTACT
 
 jcaballero@systemsbiology.org
-goubert.clement@gmail.com
 
 =head1 LICENSE
 
@@ -125,12 +126,13 @@ my @gc_bin  = ();        # Fixed GC in the new sequence
 my @classgc = ();        # Array for class GC
 my %classgc = ();        # Hash for class GC
 my $dir = "$FindBin::RealBin/../data";    # Path to models/RebBase directories
-my %rep_seq      = ();            # Hash with consensus sequences from RepBase
+my %rep_seq      = ();            # Hash with consensus sequences
 my %repdens      = ();            # Repeat density values
 my $mut_cyc      = 10;            # Maximal number of trials for mutations
 my $ins_cyc      = 100;           # Maximal number of trials for insertions
 my $wrbase       = undef;         # Write base sequence too
-my $rep_frc      = 0;             # Repeats fraction
+#my $rep_frc      = 0;             # Repeats fraction
+my $rep_frc      = undef;         # Repeats fraction
 my $sim_frc      = undef;         # Low complexity fraction
 my @dna          = qw/A C G T/;   # DNA alphabet
 my $no_repeat    = undef;         # No repeats flag
@@ -143,7 +145,7 @@ my $nsim         = 0;             # Number of simple repeats inserted
 my $gct_file     = undef;         # GC transitions file
 my $repeat_file  = undef;         # Repeat file
 my $kmer_file    = undef;         # kmer file
-my $repbase_file = undef;         # RepBase file
+my $tecons_file = undef;          # TE consensus file
 my $insert_file  = undef;         # Repeat insert file
 my $doFrag       = 1;             # Fragment repeats flag
 my $numseqs      = 1;             # Number of sequences to create
@@ -177,7 +179,7 @@ pod2usage( -verbose => 2 )
                       'kmer_file:s'    => \$kmer_file,
                       'repeat_file:s'  => \$repeat_file,
                       'insert_file:s'  => \$insert_file,
-                      'repbase_file:s' => \$repbase_file,
+                      'tecons_file:s' => \$tecons_file,
                       'align'          => \$showAln,
                       'useBED'         => \$useBED
          )
@@ -188,17 +190,9 @@ pod2usage( -verbose => 2 ) if !( defined $model and defined $size );
 
 #### MAIN ####
 
-print "dir = $dir\n";
 if ( defined $type )
 {
   $type =~ s/,/|/g;
-}
-
-# Worry about perl string limits/bugs found in earlier versions of perl
-if ( $size > 2100000000 && $] && $] < 5.012 )
-{
-  errorExit(
-          "With sequence sizes > 2100mb you need to use perl 5.12 or higher!" );
 }
 
 # Loading model parameters
@@ -209,8 +203,8 @@ $repeat_file = "$dir/$model/$model.repeats.W$win.data"
     if ( !defined $repeat_file );
 $insert_file = "$dir/$model/$model.inserts.W$win.data"
     if ( !defined $insert_file );
-$repbase_file = "$dir/RepBase/RepeatMaskerLib.embl"
-    if ( !defined $repbase_file );
+$tecons_file = "$dir/RepeatMaskerLib.embl"
+    if ( !defined $tecons_file );
 
 warn
 "Generating a $size sequence with $model model, output in \"$out.fasta\" and \"$out.inserts\" \n"
@@ -219,6 +213,40 @@ warn
 # Checking the size (conversion of symbols)
 $size = checkSize( $size );
 errorExit( "$size isn't a number or < 1kb" ) unless ( $size >= 1000 );
+
+# Worry about perl string limits/bugs found in earlier versions of perl
+if ( $size > 2100000000 && $] && $] < 5.012 )
+{
+  errorExit(
+          "With sequence sizes > 2100mb you need to use perl 5.12 or higher!" );
+}
+
+print "#  \n";
+print "#  GARLIC - Artificial sequence generator\n";
+print "#  \n";
+print "#  Parameters:\n";
+print "#    MODEL = $model [$dir]\n";
+print "#    KMER SIZE = $kmer, WINDOW SIZE = $win\n";
+print "#    SIMULATION SIZE=$size bp\n";
+if ( defined $rep_frc ) {
+  print "#      - TE FRACTION = $rep_frc % [consensi:" . $tecons_file . "]\n";
+  $no_simple = 1 if ( $rep_frc == 0 );
+}elsif ( $no_repeat ){
+  print "#      - No TE insertions\n";
+  $rep_frc = 0;
+}else {
+  print "#      - TE FRACTION = automatic - random percentage drawn per sequence (override with --repeat)\n";
+  $rep_frc = 0;
+}
+
+if ( defined $sim_frc ) {
+  print "#      - LOW COMPLEXITY FRACTION = $sim_frc %\n";
+}elsif ( $no_simple ){
+  print "#      - No low complexity insertions\n";
+}else {
+  print "#      - LOW COMPLEXITY FRACTION = automatic - random percentage drawn per sequence (override with --lowcomplex)\n";
+}
+print "#\n";
 
 # Loading models
 warn "Reading GC transitions in $gct_file\n" if ( defined $debug );
@@ -247,8 +275,8 @@ loadKmers( $kmer_file );
 
 unless ( defined $no_repeat )
 {
-  warn "Reading repeat consensi from $repbase_file\n" if ( defined $debug );
-  loadRepeatConsensus( $repbase_file );
+  warn "Reading repeat consensi from $tecons_file\n" if ( defined $debug );
+  loadRepeatConsensus( $tecons_file );
 }
 
 # Needed for simple repeats even if $no_repeat is set
@@ -309,7 +337,8 @@ for ( $snum = 1 ; $snum <= $numseqs ; $snum++ )
   my $fseed  = $fseeds[ int( rand @fseeds ) ];
   $seq = createSeq( $kmer, $fgc, $size, $win, $fseed );
   $seq = checkSeqSize( $size, $seq );
-  warn "Base sequence generated ($size bases)\n" if ( defined $debug );
+  print "Generated sequence $snum ($size bases)\n";
+  #warn "Base sequence generated ($size bases)\n" if ( defined $debug );
 
   # Write base sequence (before repeat insertions)
   if ( defined $wrbase )
@@ -561,6 +590,19 @@ sub loadKmers
 sub loadRepeatConsensus
 {
   my $file  = shift @_;
+
+  my $ftype;
+  if ( lc($file) =~ /.*\.embl$/ )
+  {
+    $ftype = "embl";
+  } elsif ( lc($file) =~ /.*\.(fasta|fa)$/ )
+  {
+    $ftype = "fasta";
+  } else
+  {
+    errorExit( "Unknown file type for $file (must have .fasta/.fa/.embl suffix)" );
+  }
+
   my $fileh = defineFH( $file );
   my ( $rep, $alt, $seq );
   open R, "$fileh" or errorExit( "Cannot open $fileh" );
@@ -584,18 +626,36 @@ sub loadRepeatConsensus
       $seq = $1;
       $seq =~ s/\s//g;
       $rep_seq{$rep} .= checkBases( $seq );
-
-      # We don't need to worry about matching up alternative names
-      # now that we are using the RepeatMasker *.align file for
-      # IDs.
-      #if (defined $alt) {
-      #    $rep_seq{$alt} .= checkBases($seq) unless ($rep eq $alt);
-      #}
+  
+        # We don't need to worry about matching up alternative names
+        # now that we are using the RepeatMasker *.align file for
+        # IDs.
+        #if (defined $alt) {
+        #    $rep_seq{$alt} .= checkBases($seq) unless ($rep eq $alt);
+        #}
+      }
+    }
+  }else {
+    while ( <R> ) {
+      if ( /^>(\S+)/ ) {
+        my $tmp = $1;
+        if ( $seq ) {
+          $rep_seq{$rep} .= checkBases( $seq );
+        }
+        $seq = "";
+        $rep = $tmp;
+        next;
+      }
+      s/[\n\r\s]+//g;
+      $seq .= $_;
+    }
+    if ( $seq ) {
+      $rep_seq{$rep} .= checkBases( $seq );
     }
   }
   close R;
 }
-
+  
 # loadRepeats => read the repeats info
 sub loadRepeats
 {
@@ -1064,7 +1124,6 @@ sub getRangeValue
 # insertRepeat => insert repeat elements
 sub insertRepeat
 {
-  warn "inserting repeat elements\n" if ( defined $debug );
   my $s       = shift @_;
   my $urep    = 0;
   my $tot_try = 0;         # to avoid infinite loops in dense repetitive regions
@@ -1076,12 +1135,13 @@ sub insertRepeat
   # compute how much repeats we want
   unless ( defined $rep_frc && $rep_frc > 0 )
   {
-
     # select a random repetitive fraction
     $rep_frc = getRangeValue( 10, 60 );
   }
   my $repthr = $rep_frc;
-  warn "Trying to add $repthr\% in repeats\n" if ( defined $debug );
+
+  print "  => inserting $repthr\% TE elements\n";
+  #warn "Trying to add $repthr\% in repeats\n" if ( defined $debug );
 
   while ( $repfra < $repthr )
   {
@@ -1244,13 +1304,13 @@ sub insertLowComplex
   # compute how much repeats we want
   unless ( defined $sim_frc )
   {
-
     # select a random repetitive fraction
     $sim_frc = getRangeValue( 0, 2 );
   }
   my $repthr = $sim_frc;
-  warn "Trying to add $sim_frc\% of low complexity sequences\n"
-      if ( defined $debug );
+  #warn "Trying to add $sim_frc\% of low complexity sequences\n"
+  #    if ( defined $debug );
+  print "  => inserting $repthr\% low complexity sequences\n";
 
   while ( $repfra < $repthr )
   {
@@ -1372,6 +1432,33 @@ sub evolveSimple
   return $seq, $aln;
 }
 
+sub getStatStr {
+  my $fCon = shift;
+  my $fMat = shift;
+  my $orient = shift;
+  my $level = shift;
+
+  $fCon =~ s/-//g;
+  my $fLen = length($fCon);
+  my $fTransi = $fMat=~ tr/i/i/;              
+  my $fTransv = $fMat =~ tr/v/v/;                                       
+  my $fDel = $fMat =~ tr/d/d/;      
+  my $fIns = $fMat =~ tr/n/n/;                                        
+  my $fPTransi = 0;
+  my $fPTransv = 0;
+  my $fPDel = 0;
+  my $fPIns = 0;
+  if ( $fLen > 0 ) {
+    $fPTransi = sprintf( "%.2f", 100 * $fTransi / $fLen );
+    $fPTransv = sprintf( "%.2f", 100 * $fTransv / $fLen );           
+    $fPDel = sprintf( "%.2f", 100 * $fDel / $fLen );             
+    $fPIns = sprintf( "%.2f", 100 * $fIns / $fLen );               
+  }else { print "Strange, why is this fragment zero length! $fCon/$fMat\n"; } #warn "Strange why is this fragment zero length: $fCon / $fMat\n"; 
+  # Append stats to output just after the prototype definition.
+  #  Insertion Info Format: ";level:orient:transition%:transversion%:insertion%:deleltion%"
+  return "$level:$orient:$fPTransi:$fPTransv:$fPIns:$fPDel";
+}
+
 # evolveRepeat => return the evolved repeat
 sub evolveRepeat
 {
@@ -1391,7 +1478,7 @@ sub evolveRepeat
 
   unless ( defined $rep_seq{$type} )
   {
-    warn "sequence for $type ($fam) not found!\n" if ( defined $debug );
+    warn "sequence for $type ($fam) not found!\n";
     return ( 'BAD', $rep );
   }
 
@@ -1435,7 +1522,11 @@ sub evolveRepeat
   # ok, evolve the consensus sequence
   $ini = int( rand( ( length $rep_seq{$type} ) - $frag ) );
   $seq = substr( $rep_seq{$type}, $ini, $frag );
-  $seq  = revcomp( $seq ) if ( $dir > 0.5 );
+  my $orient = "+";
+  if ( $dir > 0.5 ) {
+    $orient = "-";
+    $seq = revcomp( $seq );
+  }
   $mat  = '|' x length $seq;
   $aln  = join "\n", $seq, $mat, $seq;
   $mut  = int( $div * ( length $seq ) / 100 );
@@ -1451,19 +1542,8 @@ sub evolveRepeat
 
   # Calculate the pre-fragmentation alignment stats
   my ( $dc1, $pat, $dc2 ) = split( /\n/, $aln );
-  $dc1 =~ s/-//g;
-  my $slen = length($dc1);
-  $nsit = $pat=~ tr/i/i/;              
-  my $psit = sprintf( "%.2f", 100 * $nsit / $slen );
-  $nver = $pat =~ tr/v/v/;                                       
-  my $pver = sprintf( "%.2f", 100 * $nver / $slen );           
-  $ndel = $pat =~ tr/d/d/;      
-  my $pdel = sprintf( "%.2f", 100 * $ndel / $slen );             
-  $nins = $pat =~ tr/n/n/;                                        
-  my $pins = sprintf( "%.2f", 100 * $nins / $slen );               
-  # Append stats to output just after the prototype definition.
-  #  Insertion Info Format: ";level:transition%:transversion%:insertion%:deleltion%"
-  my $inst_info = ";$level:$psit:$pver:$pins:$pdel";
+  print "aln = $aln\n";
+  my $inst_info = &getStatStr( $dc1, $pat, $orient, $level);
 
   # Place multiple repeat insertions inside this repeat if required
   my %insertions = ();
@@ -1495,12 +1575,14 @@ sub evolveRepeat
     }
   }
 
+
   my @fragments  = ();
   my $totInserts = 0;
   my $newRep = "";
   if ( keys( %insertions ) )
   {
-    my $parentRepInfo = $rep . $inst_info;
+    #my $parentRepInfo = $rep . $inst_info;
+    my $parentRepInfo = $rep;
     my ( $con, $mat, $mut ) = split( /\n/, $aln );
     my $prevEnd = length( $seq ) - 1;
     my $end = length($seq);
@@ -1510,10 +1592,16 @@ sub evolveRepeat
     {
       unshift @fragments,
           [ ( $prevEnd - $insertLocation + 1 ), $parentRepInfo ];
+
+      # Clement wants the per-fragment transi/transv/ins/del %'s rather than the original insertion #s'
+      my $fMat = substr( $mat, $insertLocation, ($end-$insertLocation) );
+      my $fCon = substr( $con, $insertLocation, ($end-$insertLocation) ); 
+      my $frag_info_line = &getStatStr( $fCon, $fMat, $orient, $level);
+
       if ( $newRep eq "" ) {
-        $newRep = "$parentRepInfo\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]";
+        $newRep = "$parentRepInfo;$frag_info_line\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]";
       }else {
-        $newRep = "$parentRepInfo\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]," . $newRep;
+        $newRep = "$parentRepInfo;$frag_info_line\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]," . $newRep;
       }
       foreach my $insert ( @{ $insertions{$insertLocation} } )
       {
@@ -1530,10 +1618,13 @@ sub evolveRepeat
       $prevEnd = $insertLocation - 1;
       $end = $insertLocation;
     }
+    my $fMat = substr( $mat, $insertLocation, ($end-$insertLocation) );
+    my $fCon = substr( $con, $insertLocation, ($end-$insertLocation) );
+    my $frag_info_line = &getStatStr( $fCon, $fMat, $orient, $level);
     if ( $newRep eq "" ) {
-      $newRep = "$parentRepInfo\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]";
+      $newRep = "$parentRepInfo;$frag_info_line\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]";
     }else {
-      $newRep = "$parentRepInfo\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]," . $newRep;
+      $newRep = "$parentRepInfo;$frag_info_line\[" . substr( $seq, $insertLocation, ($end-$insertLocation)) . "]," . $newRep;
     } 
     if ( $prevEnd >= 0 )
     {
@@ -1542,7 +1633,7 @@ sub evolveRepeat
     $aln = join "\n", $con, $mat, $mut;
   } else
   {
-    $newRep = "$rep$inst_info\[$seq\]";
+    $newRep = "$rep;$inst_info\[$seq\]";
     push @fragments, [ length( $seq ), $rep ];
   }
   warn "  Added $totInserts inserts\n" if ( $debug );
