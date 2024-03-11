@@ -606,26 +606,27 @@ sub loadRepeatConsensus
   my $fileh = defineFH( $file );
   my ( $rep, $alt, $seq );
   open R, "$fileh" or errorExit( "Cannot open $fileh" );
-  while ( <R> )
-  {
-    chomp;
-#    if ( m/^ID\s+(.+?)\s+/ )
-#    if ( m/^NM\s+(.+?)\s+/ )
-    if ( m/^NM\s+(.+?)\s*$/ )
-    {
-      $rep = $1;
 
-      #$rep =~ s/_\dend//;
-      $alt = undef;
-#    } elsif ( m/^DE\s+RepbaseID:\s+(.+)/ )
-    } elsif ( m/^DR\s+RepbaseID:\s+(.+)/ )
+  if ( $ftype eq "embl" ) {
+    while ( <R> )
     {
-      $alt = $1;
-    } elsif ( m/^\s+(.+)\s+\d+$/ )
-    {
-      $seq = $1;
-      $seq =~ s/\s//g;
-      $rep_seq{$rep} .= checkBases( $seq );
+      chomp;
+      #if ( m/^ID\s+(.+?)\s+/ )
+      if ( m/^NM\s+(.+?)\s*$/ )
+      {
+        $rep = $1;
+  
+        #$rep =~ s/_\dend//;
+        $alt = undef;
+      #} elsif ( m/^DE\s+RepbaseID:\s+(.+)/ )
+      } elsif ( m/^DR\s+RepbaseID:\s+(.+)/ )
+      {
+        $alt = $1;
+      } elsif ( m/^\s+(.+)\s+\d+$/ )
+      {
+        $seq = $1;
+        $seq =~ s/\s//g;
+        $rep_seq{$rep} .= checkBases( $seq );
   
         # We don't need to worry about matching up alternative names
         # now that we are using the RepeatMasker *.align file for
